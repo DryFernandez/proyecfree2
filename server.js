@@ -86,19 +86,19 @@ app.get("/api/whoami", (req, res) => {
 let counter = 1;
 
 app.post("/api/shorturl", (req, res) => {
-  const originalUrl = req.body.url;
+  const originalurl = req.body.url;
 
-  if (!/^https?:\/\//.test(originalUrl)) {
+  if (!/^https?:\/\//.test(originalurl)) {
     return res.json({ error: "invalid url" });
   }
 
-  const hostname = originalUrl.replace(/^https?:\/\//, "").split("/")[0];
+  const hostname = originalurl.replace(/^https?:\/\//, "").split("/")[0];
 
   dns.lookup(hostname, async (err) => {
     if (err) {
       return res.json({ error: "invalid url" });
     } else {
-      const found = await Murl.findOne({ original_url: originalUrl });
+      const found = await Murl.findOne({ original_url: originalurl });
       if (found) {
         return res.json({
           original_url: found.original_url,
@@ -106,7 +106,7 @@ app.post("/api/shorturl", (req, res) => {
         });
       } else {
         const newUrl = new Murl({
-          original_url: originalUrl,
+          original_url: originalurl,
           short_url: counter++,
         });
 
@@ -121,9 +121,9 @@ app.post("/api/shorturl", (req, res) => {
 });
 
 app.get("/api/shorturl/:short_url", async (req, res) => {
-  const shortUrl = req.params.short_url;
+  const shorturl = req.params.short_url;
 
-  const ulDoc = await Murl.findOne({ short_url: shortUrl });
+  const ulDoc = await Murl.findOne({ short_url: shorturl });
   if (ulDoc) {
     res.redirect(ulDoc.original_url);
   } else {
