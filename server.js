@@ -11,26 +11,23 @@ app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+mongoose.connect(process.env.MONGO_URL);
 
 const urlSchema = new mongoose.Schema({
-  original_url: { type: String, required: true },
-  short_url: { type: Number, required: true, unique: true },
+  original_url: String,
+  short_url: Number,
 });
 const Url = mongoose.model("Url", urlSchema);
 
 app.post("/api/shorturl", (req, res) => {
   const originalUrl = req.body.url;
 
-  // Validar formato URL básica (http o https)
-  if (!/^https?:\/\/.+/.test(originalUrl)) {
+  // Validar protocolo http/https
+  if (!/^https?:\/\//.test(originalUrl)) {
     return res.json({ error: "invalid url" });
   }
 
-  // Extraer hostname para validar DNS
+  // Extraer hostname para DNS lookup
   const hostname = originalUrl.replace(/^https?:\/\//, "").split("/")[0];
 
   dns.lookup(hostname, async (err) => {
@@ -38,16 +35,15 @@ app.post("/api/shorturl", (req, res) => {
       return res.json({ error: "invalid url" });
     } else {
       try {
-        // Buscar si ya existe la URL
-        let found = await Url.findOne({ original_url: originalUrl });
+        // Buscar URL en BD
+        const found = await Url.findOne({ original_url: originalUrl });
         if (found) {
-          // Retornar la URL encontrada
           return res.json({
             original_url: found.original_url,
             short_url: found.short_url,
           });
         } else {
-          // Si no existe, generar short_url incremental basado en cantidad
+          // Generar short_url incremental
           const count = await Url.countDocuments();
           const newUrl = new Url({
             original_url: originalUrl,
@@ -59,7 +55,7 @@ app.post("/api/shorturl", (req, res) => {
             short_url: newUrl.short_url,
           });
         }
-      } catch {
+      } catch (e) {
         return res.json({ error: "Server error" });
       }
     }
@@ -82,5 +78,5 @@ app.get("/api/shorturl/:short_url", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log("Server running on port " + PORT);
 });
