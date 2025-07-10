@@ -123,7 +123,7 @@ app.post("/api/shorturl", (req, res) => {
 app.get("/api/shorturl/:short_url", async (req, res) => {
   const shortUrl = req.params.short_url;
 
-  const ulDoc = await url.findOne({ short_url: shortUrl });
+  const ulDoc = await Murl.findOne({ short_url: shortUrl });
   if (ulDoc) {
     res.redirect(ulDoc.original_url);
   } else {
