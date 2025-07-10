@@ -105,7 +105,7 @@ app.post("/api/shorturl", (req, res) => {
           short_url: found.short_url,
         });
       } else {
-        const newUrl = new url({
+        const newUrl = new Murl({
           original_url: originalUrl,
           short_url: counter++,
         });
