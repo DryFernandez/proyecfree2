@@ -121,7 +121,7 @@ app.post("/api/shorturl", (req, res) => {
 });
 
 app.get("/api/shorturl/:short_url", async (req, res) => {
-  const shorturl = req.params.short_url;
+  const shorturl = Number(req.params.short_url);
 
   const ulDoc = await Murl.findOne({ short_url: shorturl });
   if (ulDoc) {
