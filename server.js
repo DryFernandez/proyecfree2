@@ -8,10 +8,9 @@ const { url } = require("inspector");
 require ('dotenv').config()
 //========================================================================
 
-mongoose.connect(process.env.MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+mongoose.connect(process.env.MONGO_URL)
+  .then(() => console.log('🟢 Conectado a MongoDB'))
+  .catch(err => console.error('❌ Error en la conexión:', err));
 
 //========================================================================
 
@@ -99,7 +98,7 @@ app.post("/api/shorturl", (req, res) => {
     if (err) {
       return res.json({ error: "invalid url" });
     } else {
-      const found = await url.findOne({ original_url: originalUrl });
+      const found = await Murl.findOne({ original_url: originalUrl });
       if (found) {
         return res.json({
           original_url: found.original_url,
@@ -135,5 +134,5 @@ app.get("/api/shorturl/:short_url", async (req, res) => {
 //========================================================================
 
 var listener = app.listen(process.env.PORT || 3000, () => {
-  console.log("esta corriendo en el puerto:") + listener.address().port;
+  console.log("esta corriendo en el puerto:"), listener.address().port;
 });
