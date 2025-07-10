@@ -133,6 +133,12 @@ app.get("/api/shorturl/:short_url", async (req, res) => {
 
 //========================================================================
 
-var listener = app.listen(process.env.PORT || 3000, () => {
-  console.log("esta corriendo en el puerto:"), listener.address().port;
+const PORT = process.env.PORT || 4000;
+
+const server = app.listen(PORT, () => {
+  console.log("Servidor corriendo en el puerto:", PORT);
+});
+
+server.on("error", (err) => {
+  console.error("❌ Error al iniciar el servidor:", err);
 });
