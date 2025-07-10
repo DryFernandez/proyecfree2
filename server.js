@@ -1,144 +1,87 @@
-var express = require("express");
-var app = express();
-var cors = require("cors");
-const dns = require("dns");
-const bodyParser = require("body-parser");
-const { default: mongoose } = require("mongoose");
-const { url } = require("inspector");
-require ('dotenv').config()
-//========================================================================
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const dns = require('dns');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
 
+const app = express();
+
+// ——————————————————————
+// ▪️ Conexión a MongoDB
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log('🟢 Conectado a MongoDB'))
-  .catch(err => console.error('❌ Error en la conexión:', err));
+  .catch(err => console.error('❌ Error de conexión:', err.message));
 
-//========================================================================
-
-app.use(cors({ optionsSuccessStatus: 200 }));
+// ——————————————————————
+// Middlewares
+app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.json());
-app.use("/public", express.static(__dirname + "/public"));
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/views/index.html");
+app.use('/public', express.static(__dirname + '/public'));
+
+// ——————————————————————
+// Página principal
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/views/index.html');
 });
 
-//========================================================================
-
-const urlshema = new mongoose.Schema({
+// ——————————————————————
+// Modelo Mongoose
+const urlSchema = new mongoose.Schema({
   original_url: String,
-  short_url: Number,
+  short_url: Number
 });
+const Url = mongoose.model('Url', urlSchema);
 
-const Murl = mongoose.model("Murl", urlshema);
+// ——————————————————————
+// Endpoint POST /api/shorturl
+app.post('/api/shorturl', (req, res) => {
+  const { url: originalUrl } = req.body;
 
-//========================================================================
-
-/*app.get("/", (req, res) => {
-  res.send("Timestamp Microservice is running");
-});
-
-// ✅ Ruta sin parámetro: devuelve hora actual
-app.get("/api", (req, res) => {
-  const date = new Date();
-  res.json({
-    unix: date.getTime(),
-    utc: date.toUTCString(),
-  });
-});
-
-// ✅ Ruta con parámetro
-app.get("/api/:date", (req, res) => {
-  const dateInput = req.params.date;
-  let date;
-
-  // Si es un número (timestamp), conviértelo a int y pásalo al constructor
-  if (!isNaN(dateInput) && /^\d+$/.test(dateInput)) {
-    date = new Date(parseInt(dateInput));
-  } else {
-    date = new Date(dateInput);
+  // Validación básica del formato
+  if (!/^https?:\/\//i.test(originalUrl)) {
+    return res.json({ error: 'invalid url' });
   }
 
-  // Verifica si es una fecha válida
-  if (date.toString() === "Invalid Date") {
-    return res.json({ error: "Invalid Date" });
-  }
-
-  res.json({
-    unix: date.getTime(),
-    utc: date.toUTCString(),
-  });
-});*/
-/*app.get("/", (req, res) => {
-  res.send("Header parser microservice");
-});
-
-app.get("/api/whoami", (req, res) => {
-  res.json({
-    ipaddress: req.ip,
-    language: req.headers["accept-language"],
-    software:
-      req.headers[
-        "user-agent"
-      ],
-  });
-});*/
-
-let counter = 1;
-
-app.post("/api/shorturl", (req, res) => {
-  const originalurl = req.body.url;
-
-  if (!/^https?:\/\//.test(originalurl)) {
-    return res.json({ error: "invalid url" });
-  }
-
-  const hostname = originalurl.replace(/^https?:\/\//, "").split("/")[0];
+  // Extraer dominio para DNS lookup
+  const hostname = originalUrl.replace(/^https?:\/\//, '').split('/')[0];
 
   dns.lookup(hostname, async (err) => {
-    if (err) {
-      return res.json({ error: "invalid url" });
-    } else {
-      const found = await Murl.findOne({ original_url: originalurl });
-      if (found) {
-        return res.json({
-          original_url: found.original_url,
-          short_url: found.short_url,
-        });
-      } else {
-        const newUrl = new Murl({
-          original_url: originalurl,
-          short_url: counter++,
-        });
+    if (err) return res.json({ error: 'invalid url' });
 
-        await newUrl.save();
-        res.json({
-          original_url: newUrl.original_url,
-          short_url: newUrl.short_url,
-        });
-      }
+    // Verificar si ya existe en DB
+    const found = await Url.findOne({ original_url: originalUrl });
+    if (found) {
+      return res.json({ original_url: found.original_url, short_url: found.short_url });
     }
+
+    // Nuevo documento con short_url = count + 1
+    const count = await Url.countDocuments();
+    const newUrl = new Url({ original_url: originalUrl, short_url: count + 1 });
+    await newUrl.save();
+
+    res.json({ original_url: newUrl.original_url, short_url: newUrl.short_url });
   });
 });
 
-app.get("/api/shorturl/:short_url", async (req, res) => {
-  const shorturl = Number(req.params.short_url);
+// ——————————————————————
+// Endpoint GET /api/shorturl/:short_url
+app.get('/api/shorturl/:short_url', async (req, res) => {
+  const shortUrl = Number(req.params.short_url);
+  if (isNaN(shortUrl)) return res.json({ error: 'Invalid short_url' });
 
-  const ulDoc = await Murl.findOne({ short_url: shorturl });
-  if (ulDoc) {
-    res.redirect(ulDoc.original_url);
+  const found = await Url.findOne({ short_url: shortUrl });
+  if (found) {
+    return res.redirect(found.original_url);
   } else {
-    res.json({ error: "No short URL found for given input" });
+    return res.json({ error: 'No short URL found for given input' });
   }
 });
 
-//========================================================================
-
-const PORT = process.env.PORT || 4000;
-
-const server = app.listen(PORT, () => {
-  console.log("Servidor corriendo en el puerto:", PORT);
-});
-
-server.on("error", (err) => {
-  console.error("❌ Error al iniciar el servidor:", err);
+// ——————————————————————
+// Levantar servidor
+const PORT = process.env.PORT || 3000;
+const listener = app.listen(PORT, () => {
+  console.log('🚀 Servidor corriendo en el puerto:', PORT);
 });
