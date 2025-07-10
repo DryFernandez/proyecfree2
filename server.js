@@ -1,101 +1,115 @@
 const express = require("express");
 const cors = require("cors");
 const dns = require("dns");
-const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
+const mongoose = require("mongoose");
 require("dotenv").config();
 
 const app = express();
-app.use(cors());
+
+//========================================================================
+// Conexión a MongoDB
+mongoose.connect(process.env.MONGO_URL)
+  .then(() => console.log("🟢 Conectado a MongoDB"))
+  .catch((err) => console.error("❌ Error en la conexión:", err));
+
+//========================================================================
+// Middlewares
+app.use(cors({ optionsSuccessStatus: 200 }));
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.json());
 app.use("/public", express.static(__dirname + "/public"));
 
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/views/index.html");
 });
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
-// Schema and model
+//========================================================================
+// Esquema y modelo
 const urlSchema = new mongoose.Schema({
   original_url: String,
   short_url: Number,
 });
 
-const Url = mongoose.model("Url", urlSchema);
+const Murl = mongoose.model("Murl", urlSchema);
 
-// Counter
+//========================================================================
+// GET opcional para evitar "Cannot GET"
+
+
+//========================================================================
+// Ruta POST para acortar URLs
 let counter = 1;
 
-// POST route
 app.post("/api/shorturl", (req, res) => {
-  const inputUrl = req.body.url;
+  const originalUrl = req.body.url;
 
-  // Validate protocol
-  if (!/^https?:\/\/.+\..+/.test(inputUrl)) {
+  if (!/^https?:\/\//.test(originalUrl)) {
     return res.json({ error: "invalid url" });
   }
 
-  const hostname = inputUrl.replace(/^https?:\/\//, "").split("/")[0];
+  const hostname = originalUrl.replace(/^https?:\/\//, "").split("/")[0];
 
   dns.lookup(hostname, async (err) => {
     if (err) {
       return res.json({ error: "invalid url" });
-    }
+    } else {
+      const found = await Murl.findOne({ original_url: originalUrl });
 
-    try {
-      let existing = await Url.findOne({ original_url: inputUrl });
-      if (existing) {
+      if (found) {
         return res.json({
-          original_url: existing.original_url,
-          short_url: existing.short_url,
+          original_url: found.original_url,
+          short_url: found.short_url,
+        });
+      } else {
+        const newUrl = new Murl({
+          original_url: originalUrl,
+          short_url: counter++,
+        });
+
+        await newUrl.save();
+
+        res.json({
+          original_url: newUrl.original_url,
+          short_url: newUrl.short_url,
         });
       }
-
-      const count = await Url.countDocuments({});
-      const newUrl = new Url({
-        original_url: inputUrl,
-        short_url: count + 1,
-      });
-
-      await newUrl.save();
-
-      res.json({
-        original_url: newUrl.original_url,
-        short_url: newUrl.short_url,
-      });
-    } catch (e) {
-      res.status(500).json({ error: "Server error" });
     }
   });
 });
 
-// GET route
+//========================================================================
+// Ruta GET para redirigir a la URL original
 app.get("/api/shorturl/:short_url", async (req, res) => {
-  const shortId = parseInt(req.params.short_url);
+  const shortUrl = Number(req.params.short_url);
 
-  if (!shortId) {
-    return res.json({ error: "Wrong format" });
-  }
+  const found = await Murl.findOne({ short_url: shortUrl });
 
-  try {
-    const found = await Url.findOne({ short_url: shortId });
-    if (found) {
-      res.redirect(found.original_url);
-    } else {
-      res.json({ error: "No short URL found for given input" });
-    }
-  } catch (err) {
-    res.status(500).json({ error: "Database error" });
+  if (found) {
+    res.redirect(found.original_url);
+  } else {
+    res.json({ error: "No short URL found for given input" });
   }
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("✅ Servidor corriendo en puerto", PORT);
+// GET para listar todas las URLs acortadas
+app.get("/api/shorturl", async (req, res) => {
+  try {
+    const urls = await Murl.find({}, { _id: 0, __v: 0 }); // excluye _id y __v
+    res.json(urls);
+  } catch (err) {
+    res.status(500).json({ error: "Error retrieving URLs from database" });
+  }
+});
+
+
+//========================================================================
+// Servidor
+const PORT = process.env.PORT || 4000;
+const server = app.listen(PORT, () => {
+  console.log("Servidor corriendo en el puerto:", PORT);
+});
+
+server.on("error", (err) => {
+  console.error("❌ Error al iniciar el servidor:", err);
 });
