@@ -41,46 +41,81 @@ router.post('/:id/exercises', async (req, res) => {
 });
 
 // Obtener registro de ejercicios
-router.get('/:id/logs', async (req, res) => {
-  const { id } = req.params;
-  const { from, to, limit } = req.query;
+router.get('/:_id/logs', async (req, res) => {
+  const { _id } = req.params;
+  let { from, to, limit } = req.query;
 
   try {
-    // Validar usuario
-    const user = await User.findById(id);
-    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    // Validar que el usuario exista
+    const user = await User.findById(_id);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
 
-    // Construir query
-    let query = { userId: id };
-    let dateFilter = {};
+    // Construir el objeto de consulta
+    const query = { userId: _id };
+    const dateFilter = {};
 
-    if (from) dateFilter.$gte = new Date(from);
-    if (to) dateFilter.$lte = new Date(to);
-    if (from || to) query.date = dateFilter;
+    // Procesar parámetros 'from' y 'to'
+    if (from) {
+      const fromDate = new Date(from);
+      if (isNaN(fromDate.getTime())) {
+        return res.status(400).json({ error: 'Formato de fecha "from" inválido. Use yyyy-mm-dd' });
+      }
+      dateFilter.$gte = fromDate;
+    }
 
-    // Obtener ejercicios
-    let exercisesQuery = Exercise.find(query, 'description duration date -_id')
+    if (to) {
+      const toDate = new Date(to);
+      if (isNaN(toDate.getTime())) {
+        return res.status(400).json({ error: 'Formato de fecha "to" inválido. Use yyyy-mm-dd' });
+      }
+      dateFilter.$lte = toDate;
+    }
+
+    // Aplicar filtro de fechas si existe
+    if (Object.keys(dateFilter).length > 0) {
+      query.date = dateFilter;
+    }
+
+    // Procesar el límite
+    let limitNumber;
+    if (limit) {
+      limitNumber = parseInt(limit);
+      if (isNaN(limitNumber)) {
+        return res.status(400).json({ error: 'El parámetro "limit" debe ser un número' });
+      }
+    }
+
+    // Obtener los ejercicios con los filtros aplicados
+    let exercisesQuery = Exercise.find(query)
+      .select('description duration date -_id')
       .sort({ date: 'asc' });
 
-    if (limit) exercisesQuery = exercisesQuery.limit(parseInt(limit));
+    if (limitNumber) {
+      exercisesQuery = exercisesQuery.limit(limitNumber);
+    }
 
     const exercises = await exercisesQuery.exec();
 
-    // Formatear respuesta
-    const log = exercises.map(ex => ({
-      description: ex.description,
-      duration: ex.duration,
-      date: ex.date.toDateString()
+    // Formatear la respuesta según los requisitos
+    const log = exercises.map(exercise => ({
+      description: String(exercise.description), // Aseguramos que sea string (Prueba 13)
+      duration: Number(exercise.duration), // Aseguramos que sea número (Prueba 14)
+      date: exercise.date.toDateString() // Formateamos fecha (Prueba 15)
     }));
 
+    // Respuesta final
     res.json({
       _id: user._id,
       username: user.username,
       count: log.length,
       log
     });
+
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error('Error en /api/users/:_id/logs:', err);
+    res.status(500).json({ error: 'Error del servidor' });
   }
 });
 
