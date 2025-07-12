@@ -1,19 +1,46 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
+const path = require('path');
+const multer = require('multer');
 
 const app = express();
+
+// Configuración de Multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: storage });
 
 // Middleware
 app.use(cors());
 app.use(express.static('public'));
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views/index.html'));
+});
+
+app.post('/api/fileanalyse', upload.single('upfile'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se subió ningún archivo' });
+  }
+
+  // Respuesta con metadatos (Prueba 4)
+  res.json({
+    name: req.file.originalname,
+    type: req.file.mimetype,
+    size: req.file.size
+  });
+});
 
 // Conexión a MongoDB
-mongoose.connect(process.env.MONGO_URL)
+/*mongoose.connect(process.env.MONGO_URL)
 .then(() => console.log("🟢 Conectado a MongoDB"))
 .catch((err) => console.error("❌ Error en MongoDB:", err));
 
@@ -22,7 +49,7 @@ app.get('/', (req, res) => {
 });
 
 // Modelo de URL
-/*const urlSchema = new mongoose.Schema({
+const urlSchema = new mongoose.Schema({
   original_url: { type: String, required: true },
   short_url: { type: Number, unique: true },
 });
@@ -90,12 +117,12 @@ app.get("/api/shorturl/:short_url", async (req, res) => {
   } catch (err) {
     res.json({ error: 'invalid url' });
   }
-});*/
+});
 
 const userRoutes = require('./router/user');
 const exerciseRoutes = require('./router/exercise');
 app.use('/api/users', userRoutes);
-app.use('/api/users', exerciseRoutes);
+app.use('/api/users', exerciseRoutes);*/
 
 
 // Iniciar servidor
