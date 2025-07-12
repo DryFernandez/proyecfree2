@@ -1,34 +1,28 @@
-const express = require("express");
-const cors = require("cors");
-const dns = require("dns");
-const mongoose = require("mongoose");
-const bodyParser = require("body-parser");
-const { URL } = require('url'); // Using Node's URL module for validation
-require("dotenv").config();
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
 
 const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.static("public"));
+app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(express.json()); // Add JSON body parser
-
-// Página principal
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/views/index.html");
-});
+app.use(bodyParser.json());
 
 // Conexión a MongoDB
-mongoose.connect(process.env.MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGO_URL)
 .then(() => console.log("🟢 Conectado a MongoDB"))
 .catch((err) => console.error("❌ Error en MongoDB:", err));
 
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/views/index.html');
+});
+
 // Modelo de URL
-const urlSchema = new mongoose.Schema({
+/*const urlSchema = new mongoose.Schema({
   original_url: { type: String, required: true },
   short_url: { type: Number, unique: true },
 });
@@ -96,7 +90,13 @@ app.get("/api/shorturl/:short_url", async (req, res) => {
   } catch (err) {
     res.json({ error: 'invalid url' });
   }
-});
+});*/
+
+const userRoutes = require('./router/user');
+const exerciseRoutes = require('./router/exercise');
+app.use('/api/users', userRoutes);
+app.use('/api/users', exerciseRoutes);
+
 
 // Iniciar servidor
 const PORT = process.env.PORT || 4000;
